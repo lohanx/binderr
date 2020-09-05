@@ -53,6 +53,9 @@ func (be *BindErrors) init() {
 	for i, err := range be.ValidationErrors {
 		field := err.Field()
 		tag := err.Tag()
+		if _, ok := be.errorIndex[field]; !ok {
+			be.errorIndex[field] = make(map[string]int)
+		}
 		be.errorIndex[field][tag] = i
 		be.errors = append(be.errors, be.ErrorMsgs[field][tag])
 	}
