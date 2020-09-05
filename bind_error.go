@@ -14,14 +14,20 @@ type BindErrors struct {
 
 // errors gin build error
 // messages are custom error messages
+//
+// type Person struct {
+//     Email `form:"email" binding:"required,email"`
+//     Password `form:"password" binding:"required,min=8"`
+// }
+//
 // var messages = map[string]map[string]error{
-//     "email":{
+//     "Email":{
 //         "required":errors.New("error"),
 //         "email":errors.New("error"),
 //     },
-//     "password":{
+//     "Password":{
 //         "required":errors.New("error"),
-//         "len":errors.New("error"),
+//         "min":errors.New("error"),
 //     },
 // }
 func New(errors error, messages map[string]map[string]error) *BindErrors {
@@ -34,7 +40,8 @@ func New(errors error, messages map[string]map[string]error) *BindErrors {
 func (be *BindErrors) init(errors error, messages map[string]map[string]error) {
 	defer func() {
 		if err := recover(); err != nil {
-			be.errors = []error{errors}
+			be.errors = make([]error, 1)
+			be.errors[0] = errors
 			be.esl = 1
 		}
 	}()
@@ -90,7 +97,7 @@ func (be *BindErrors) GetTagError(field, tag string) error {
 // GetErrors return all errors of the field
 func (be *BindErrors) GetFiledErrors(field string) []error {
 	if tags, ok := be.esi[field]; ok {
-		var errors = make([]error, 0, len(tags))
+		var errors = make([]error, len(tags))
 		for _, i := range tags {
 			errors = append(errors, be.errors[i])
 		}
