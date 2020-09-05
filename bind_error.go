@@ -1,13 +1,15 @@
 package binderr
 
-import "github.com/go-playground/validator/v10"
+import (
+	"github.com/go-playground/validator/v10"
+)
 
 type BindErrors struct {
-	ValidationErrors validator.ValidationErrors
-	ErrorMsgs        map[string]map[string]error
+	validationErrors validator.ValidationErrors
+	messages         map[string]map[string]error
 	errors           []error
-	errorsLen        int
-	errorIndex       map[string]map[string]int
+	esl              int                       //errors length
+	esi              map[string]map[string]int //errors index
 }
 
 // errors gin build error
@@ -23,57 +25,62 @@ type BindErrors struct {
 //     },
 // }
 func New(errors error, messages map[string]map[string]error) *BindErrors {
-	be := &BindErrors{}
-	be.apply(errors, messages)
-	be.init()
+	be := new(BindErrors)
+	be.init(errors, messages)
+	be.parse()
 	return be
 }
 
-func (be *BindErrors) apply(errors error, messages map[string]map[string]error) {
+func (be *BindErrors) init(errors error, messages map[string]map[string]error) {
 	defer func() {
 		if err := recover(); err != nil {
-			be.errors = make([]error, 0, 1)
-			be.errors = append(be.errors, errors)
-			be.errorsLen = 1
+			be.errors = []error{errors}
+			be.esl = 1
 		}
 	}()
-	be.ValidationErrors = errors.(validator.ValidationErrors)
-	be.ErrorMsgs = messages
+	be.validationErrors = errors.(validator.ValidationErrors)
+	be.messages = messages
 }
 
-func (be *BindErrors) init() {
+func (be *BindErrors) parse() {
 	if be.errors != nil {
 		return
 	} else {
-		be.errors = make([]error, 0, len(be.ValidationErrors))
+		be.errors = make([]error, len(be.validationErrors))
 	}
-	if be.errorIndex == nil {
-		be.errorIndex = make(map[string]map[string]int)
-	}
-	for i, err := range be.ValidationErrors {
+	be.esi = make(map[string]map[string]int)
+	for i, err := range be.validationErrors {
 		field := err.Field()
 		tag := err.Tag()
-		if _, ok := be.errorIndex[field]; !ok {
-			be.errorIndex[field] = make(map[string]int)
+		if _, ok := be.esi[field]; !ok {
+			be.esi[field] = make(map[string]int)
 		}
-		be.errorIndex[field][tag] = i
-		be.errors = append(be.errors, be.ErrorMsgs[field][tag])
+		be.esi[field][tag] = i
+		be.errors[i] = be.messages[field][tag]
 	}
-	be.errorsLen = len(be.errors)
+	be.esl = len(be.errors)
+}
+
+// FirstError return the first error
+func (be *BindErrors) FirstError() error {
+	if be.esl <= 0 {
+		return nil
+	}
+	return be.errors[0]
 }
 
 // LastError return the last error
 func (be *BindErrors) LastError() error {
-	if be.errorsLen <= 0 {
+	if be.esl <= 0 {
 		return nil
 	}
-	return be.errors[be.errorsLen-1]
+	return be.errors[be.esl-1]
 }
 
 // GetError return error based on field and tag
-func (be *BindErrors) GetError(field, tag string) error {
-	if errors, ok := be.errorIndex[field]; ok {
-		if index, ok := errors[tag]; ok {
+func (be *BindErrors) GetTagError(field, tag string) error {
+	if tags, ok := be.esi[field]; ok {
+		if index, ok := tags[tag]; ok {
 			return be.errors[index]
 		}
 	}
@@ -81,26 +88,23 @@ func (be *BindErrors) GetError(field, tag string) error {
 }
 
 // GetErrors return all errors of the field
-func (be *BindErrors) GetErrors(field string) []error {
-	if errsIndex, ok := be.errorIndex[field]; ok {
-		var errors = make([]error, 0, len(errsIndex))
-		for _, index := range errsIndex {
-			errors = append(errors, be.errors[index])
+func (be *BindErrors) GetFiledErrors(field string) []error {
+	if tags, ok := be.esi[field]; ok {
+		var errors = make([]error, 0, len(tags))
+		for _, i := range tags {
+			errors = append(errors, be.errors[i])
 		}
 		return errors
 	}
 	return nil
 }
 
-// FirstError return the first error
-func (be *BindErrors) FirstError() error {
-	if be.errorsLen <= 0 {
-		return nil
-	}
-	return be.errors[0]
-}
-
 // Errors return all errors
 func (be *BindErrors) Errors() []error {
 	return be.errors
+}
+
+// Len return errors length
+func (be *BindErrors) Len() int {
+	return be.esl
 }
